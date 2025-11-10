@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data
+data/*.parquet
+data/*.csv
+data/*.h5
+data/*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Environment variables
+.env
+.env.local
+
+# API Keys
+**/api_keys.json
+**/credentials.json
+
+# Backtest Results
+results/
+backtest_results/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
