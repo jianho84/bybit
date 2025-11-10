@@ -26,14 +26,16 @@ class Backtester:
     - Performance analytics
     """
 
-    def __init__(self, config):
+    def __init__(self, config, journal_manager=None):
         """
         Initialize backtester.
 
         Args:
             config: Backtest configuration
+            journal_manager: Optional JournalManager for logging trades
         """
         self.config = config
+        self.journal_manager = journal_manager
 
         # Initialize components
         self.risk_manager = RiskManager(config.risk if hasattr(config, 'risk') else None)
@@ -97,6 +99,10 @@ class Backtester:
             for signal in signals:
                 self._process_signal(signal, current_date)
 
+                # Log signal to journal
+                if self.journal_manager:
+                    self.journal_manager.log_signal(signal)
+
             # Update open positions
             current_prices = {
                 symbol: df.loc[current_date, 'close']
@@ -133,6 +139,15 @@ class Backtester:
         print(f"\nBacktest complete!")
         print(f"Total trades: {metrics.total_trades}")
         print(f"Final equity: ${self.equity_curve.iloc[-1]:,.2f}")
+
+        # Log to journal if enabled
+        if self.journal_manager:
+            print("\nLogging backtest results to journal...")
+            self.journal_manager.log_backtest_results(
+                strategy_name=strategy.name,
+                signals=self.signals,
+                trades_df=trades_df
+            )
 
         return metrics
 
