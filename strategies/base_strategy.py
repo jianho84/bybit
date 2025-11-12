@@ -109,8 +109,8 @@ class BaseStrategy(ABC):
         if signal_idx < 50:
             return False
 
-        # Check if price data is valid
-        if df.loc[signal_idx, 'close'] <= 0:
+        # Check if price data is valid (use iloc for integer indexing)
+        if df.iloc[signal_idx]['close'] <= 0:
             return False
 
         return True

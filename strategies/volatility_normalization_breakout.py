@@ -82,16 +82,16 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         # Detect compression and breakouts
         df = self._detect_compression_and_breakouts(df)
 
-        # Generate signals
+        # Generate signals (use iloc for integer-based indexing)
         for idx in range(min_required, len(df)):
             # Check for long breakout
-            if df.loc[idx, 'breakout_long_signal']:
+            if df.iloc[idx]['breakout_long_signal']:
                 signal = self._generate_long_signal(df, idx)
                 if signal:
                     signals.append(signal)
 
             # Check for short breakout
-            elif df.loc[idx, 'breakout_short_signal']:
+            elif df.iloc[idx]['breakout_short_signal']:
                 signal = self._generate_short_signal(df, idx)
                 if signal:
                     signals.append(signal)
@@ -180,27 +180,28 @@ class VolatilityNormalizationBreakout(BaseStrategy):
             if not recent_compression:
                 continue
 
-            current_close = df.loc[idx, 'close']
-            prev_close = df.loc[idx - 1, 'close']
+            # Use iloc for integer-based indexing
+            current_close = df.iloc[idx]['close']
+            prev_close = df.iloc[idx - 1]['close']
 
-            bb_upper = df.loc[idx, 'bb_upper']
-            bb_lower = df.loc[idx, 'bb_lower']
-            prev_bb_upper = df.loc[idx - 1, 'bb_upper']
-            prev_bb_lower = df.loc[idx - 1, 'bb_lower']
+            bb_upper = df.iloc[idx]['bb_upper']
+            bb_lower = df.iloc[idx]['bb_lower']
+            prev_bb_upper = df.iloc[idx - 1]['bb_upper']
+            prev_bb_lower = df.iloc[idx - 1]['bb_lower']
 
             # Volume confirmation
-            volume_confirmed = df.loc[idx, 'volume_ratio'] >= self.params.volume_threshold
+            volume_confirmed = df.iloc[idx]['volume_ratio'] >= self.params.volume_threshold
 
             if not volume_confirmed:
                 continue
 
-            # Long breakout: close above upper BB
+            # Long breakout: close above upper BB (use iloc with get_loc for setting)
             if current_close > bb_upper and prev_close <= prev_bb_upper:
-                df.loc[idx, 'breakout_long_signal'] = True
+                df.iloc[idx, df.columns.get_loc('breakout_long_signal')] = True
 
             # Short breakout: close below lower BB
             elif current_close < bb_lower and prev_close >= prev_bb_lower:
-                df.loc[idx, 'breakout_short_signal'] = True
+                df.iloc[idx, df.columns.get_loc('breakout_short_signal')] = True
 
         return df
 
@@ -220,8 +221,8 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         stop_loss = levels['stop_loss']
         take_profit = levels.get('take_profit')
 
-        # Calculate position sizing with volatility scaling
-        current_atr = df.loc[idx, 'atr']
+        # Calculate position sizing with volatility scaling (use iloc for integer indexing)
+        current_atr = df.iloc[idx]['atr']
         reference_atr = df['atr'].rolling(window=90).mean().iloc[idx]
 
         position_sizing = self.calculate_position_size(
@@ -237,10 +238,10 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         # Market context
         asset = self.config.assets[0] if self.config.assets else "UNKNOWN"
 
-        bandwidth = df.loc[idx, 'bb_bandwidth']
-        bandwidth_pct = df.loc[idx, 'bandwidth_percentile']
-        volume_ratio = df.loc[idx, 'volume_ratio']
-        recent_vol = df.loc[idx, 'recent_volatility']
+        bandwidth = df.iloc[idx]['bb_bandwidth']
+        bandwidth_pct = df.iloc[idx]['bandwidth_percentile']
+        volume_ratio = df.iloc[idx]['volume_ratio']
+        recent_vol = df.iloc[idx]['recent_volatility']
         prev_range = df['close'].iloc[idx-20:idx].max() - df['close'].iloc[idx-20:idx].min()
         prev_range_pct = prev_range / df['close'].iloc[idx-20:idx].mean() * 100
 
@@ -248,9 +249,9 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         trigger_condition = (
             f"Volatility compression breakout detected:\n"
             f"   • Bollinger Bandwidth at {bandwidth:.4f} ({bandwidth_pct:.1f}th percentile over {self.params.bandwidth_lookback} periods)\n"
-            f"   • Price closed at ${entry_price:,.2f}, breaking above upper BB (${df.loc[idx, 'bb_upper']:,.2f})\n"
-            f"   • Volume confirmation: {volume_ratio:.2f}x average volume ({df.loc[idx, 'volume']:,.0f} units)\n"
-            f"   • Clean breakout with momentum: +{df.loc[idx, 'price_change']*100:.2f}% candle"
+            f"   • Price closed at ${entry_price:,.2f}, breaking above upper BB (${df.iloc[idx]['bb_upper']:,.2f})\n"
+            f"   • Volume confirmation: {volume_ratio:.2f}x average volume ({df.iloc[idx]['volume']:,.0f} units)\n"
+            f"   • Clean breakout with momentum: +{df.iloc[idx]['price_change']*100:.2f}% candle"
         )
 
         market_state = (
@@ -281,7 +282,7 @@ class VolatilityNormalizationBreakout(BaseStrategy):
 
         trailing_stop_desc = (
             f"Chandelier Exit: {self.params.chandelier_atr_multiple}x ATR trailing stop "
-            f"(currently ${df.loc[idx, 'chandelier_long_stop']:,.2f})"
+            f"(currently ${df.iloc[idx]['chandelier_long_stop']:,.2f})"
         )
 
         signal = self.format_signal(
@@ -319,8 +320,8 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         stop_loss = levels['stop_loss']
         take_profit = levels.get('take_profit')
 
-        # Volatility-scaled position sizing
-        current_atr = df.loc[idx, 'atr']
+        # Volatility-scaled position sizing (use iloc for integer indexing)
+        current_atr = df.iloc[idx]['atr']
         reference_atr = df['atr'].rolling(window=90).mean().iloc[idx]
 
         position_sizing = self.calculate_position_size(
@@ -336,10 +337,10 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         # Market context
         asset = self.config.assets[0] if self.config.assets else "UNKNOWN"
 
-        bandwidth = df.loc[idx, 'bb_bandwidth']
-        bandwidth_pct = df.loc[idx, 'bandwidth_percentile']
-        volume_ratio = df.loc[idx, 'volume_ratio']
-        recent_vol = df.loc[idx, 'recent_volatility']
+        bandwidth = df.iloc[idx]['bb_bandwidth']
+        bandwidth_pct = df.iloc[idx]['bandwidth_percentile']
+        volume_ratio = df.iloc[idx]['volume_ratio']
+        recent_vol = df.iloc[idx]['recent_volatility']
         prev_range_pct = (
             (df['close'].iloc[idx-20:idx].max() - df['close'].iloc[idx-20:idx].min()) /
             df['close'].iloc[idx-20:idx].mean() * 100
@@ -348,9 +349,9 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         trigger_condition = (
             f"Volatility compression breakdown detected:\n"
             f"   • Bollinger Bandwidth: {bandwidth:.4f} ({bandwidth_pct:.1f}th percentile)\n"
-            f"   • Price broke below lower BB: ${entry_price:,.2f} < ${df.loc[idx, 'bb_lower']:,.2f}\n"
-            f"   • Volume surge: {volume_ratio:.2f}x average ({df.loc[idx, 'volume']:,.0f} units)\n"
-            f"   • Strong bearish momentum: {df.loc[idx, 'price_change']*100:.2f}% down candle"
+            f"   • Price broke below lower BB: ${entry_price:,.2f} < ${df.iloc[idx]['bb_lower']:,.2f}\n"
+            f"   • Volume surge: {volume_ratio:.2f}x average ({df.iloc[idx]['volume']:,.0f} units)\n"
+            f"   • Strong bearish momentum: {df.iloc[idx]['price_change']*100:.2f}% down candle"
         )
 
         market_state = (
@@ -381,7 +382,7 @@ class VolatilityNormalizationBreakout(BaseStrategy):
 
         trailing_stop_desc = (
             f"Chandelier Exit: {self.params.chandelier_atr_multiple}x ATR trailing "
-            f"(currently ${df.loc[idx, 'chandelier_short_stop']:,.2f})"
+            f"(currently ${df.iloc[idx]['chandelier_short_stop']:,.2f})"
         )
 
         signal = self.format_signal(
@@ -420,8 +421,9 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         Returns:
             Dictionary with entry, stop_loss, take_profit (None for trailing)
         """
-        current_price = df.loc[signal_idx, 'close']
-        bb_middle = df.loc[signal_idx, 'bb_middle']
+        # Use iloc for integer-based indexing
+        current_price = df.iloc[signal_idx]['close']
+        bb_middle = df.iloc[signal_idx]['bb_middle']
 
         if direction == 'LONG':
             entry = current_price
@@ -460,16 +462,16 @@ class VolatilityNormalizationBreakout(BaseStrategy):
         ]
 
         for col in required_cols:
-            if col not in df.columns or pd.isna(df.loc[signal_idx, col]):
+            if col not in df.columns or pd.isna(df.iloc[signal_idx][col]):
                 return False
 
-        # Ensure stop loss is valid (not too tight, not too wide)
+        # Ensure stop loss is valid (not too tight, not too wide) - use iloc for integer indexing
         if direction == 'LONG':
-            stop_distance = abs(df.loc[signal_idx, 'close'] - df.loc[signal_idx, 'bb_middle'])
+            stop_distance = abs(df.iloc[signal_idx]['close'] - df.iloc[signal_idx]['bb_middle'])
         else:
-            stop_distance = abs(df.loc[signal_idx, 'bb_middle'] - df.loc[signal_idx, 'close'])
+            stop_distance = abs(df.iloc[signal_idx]['bb_middle'] - df.iloc[signal_idx]['close'])
 
-        stop_pct = stop_distance / df.loc[signal_idx, 'close']
+        stop_pct = stop_distance / df.iloc[signal_idx]['close']
 
         # Stop should be between 0.5% and 5%
         if stop_pct < 0.005 or stop_pct > 0.05:
