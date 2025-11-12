@@ -1,5 +1,5 @@
 """
-Strategy 1: Liquidity Imbalance Mean Reversion
+Strategy 1: Liquidity Imbalance Mean Reversion - FIXED VERSION
 ==============================================
 
 Core Premise:
@@ -7,17 +7,7 @@ Large aggressive market orders that eat through the order book cause temporary
 price dislocation. The price tends to mean-revert slightly after this liquidity
 shock as the market digests the trade and liquidity replenishes.
 
-Entry Logic:
-- Detect large market orders (volume > X sigma above mean)
-- Price must move through Y% of bid-ask spread
-- Enter counter-trend on first reversal signal (RSI curl, hammer candle)
-- Use tight stops and quick profit targets
-
-Target Performance:
-- Backtested Annual Return: > 40%
-- Sharpe Ratio: > 1.5
-- Win Rate: ~62%
-- Profit Factor: ~1.8
+FIXED: Pandas indexing issues with datetime index
 """
 
 import pandas as pd
@@ -81,16 +71,17 @@ class LiquidityImbalanceMeanReversion(BaseStrategy):
         df = self._detect_large_orders(df)
 
         # Generate signals for each detected liquidity event
-        for idx in range(self.params.lookback_periods, len(df)):
+        # Use iloc for proper integer indexing
+        for i in range(self.params.lookback_periods, len(df)):
             # Check for large sell order -> potential LONG entry
-            if df.loc[idx, 'large_sell_signal']:
-                signal = self._generate_long_signal(df, idx)
+            if df.iloc[i]['large_sell_signal']:
+                signal = self._generate_long_signal(df, i)
                 if signal:
                     signals.append(signal)
 
             # Check for large buy order -> potential SHORT entry
-            elif df.loc[idx, 'large_buy_signal']:
-                signal = self._generate_short_signal(df, idx)
+            elif df.iloc[i]['large_buy_signal']:
+                signal = self._generate_short_signal(df, i)
                 if signal:
                     signals.append(signal)
 
@@ -144,15 +135,15 @@ class LiquidityImbalanceMeanReversion(BaseStrategy):
         df['large_sell_signal'] = False
         df['large_buy_signal'] = False
 
-        for idx in range(self.params.lookback_periods, len(df)):
-            # Check volume threshold
-            volume_z = df.loc[idx, 'volume_zscore']
+        for i in range(self.params.lookback_periods, len(df)):
+            # Use iloc for integer-based indexing
+            volume_z = df.iloc[i]['volume_zscore']
             if pd.isna(volume_z) or volume_z < self.params.volume_sigma_threshold:
                 continue
 
             # Check price impact
-            price_change = df.loc[idx, 'price_change']
-            spread = df.loc[idx, 'spread_proxy']
+            price_change = df.iloc[i]['price_change']
+            spread = df.iloc[i]['spread_proxy']
 
             if abs(price_change) < spread * self.params.spread_consumption_pct:
                 continue
@@ -160,26 +151,26 @@ class LiquidityImbalanceMeanReversion(BaseStrategy):
             # Large sell order: high volume + price down
             if price_change < 0:
                 # Check RSI for oversold
-                rsi = df.loc[idx, 'rsi']
+                rsi = df.iloc[i]['rsi']
                 if not pd.isna(rsi) and rsi < self.params.rsi_oversold:
                     # Look for reversal confirmation in next 1-2 bars
-                    if idx + 1 < len(df):
-                        next_close = df.loc[idx + 1, 'close']
-                        curr_close = df.loc[idx, 'close']
+                    if i + 1 < len(df):
+                        next_close = df.iloc[i + 1]['close']
+                        curr_close = df.iloc[i]['close']
                         if next_close > curr_close:  # Price starting to recover
-                            df.loc[idx + 1, 'large_sell_signal'] = True
+                            df.iloc[i + 1, df.columns.get_loc('large_sell_signal')] = True
 
             # Large buy order: high volume + price up
             elif price_change > 0:
                 # Check RSI for overbought
-                rsi = df.loc[idx, 'rsi']
+                rsi = df.iloc[i]['rsi']
                 if not pd.isna(rsi) and rsi > self.params.rsi_overbought:
                     # Look for reversal confirmation
-                    if idx + 1 < len(df):
-                        next_close = df.loc[idx + 1, 'close']
-                        curr_close = df.loc[idx, 'close']
+                    if i + 1 < len(df):
+                        next_close = df.iloc[i + 1]['close']
+                        curr_close = df.iloc[i]['close']
                         if next_close < curr_close:  # Price starting to drop
-                            df.loc[idx + 1, 'large_buy_signal'] = True
+                            df.iloc[i + 1, df.columns.get_loc('large_buy_signal')] = True
 
         return df
 
@@ -212,25 +203,28 @@ class LiquidityImbalanceMeanReversion(BaseStrategy):
         # Get market context
         asset = self.config.assets[0] if self.config.assets else "UNKNOWN"
 
-        # Calculate statistics for context
-        volume_z = df.loc[idx - 1, 'volume_zscore']
-        spread_consumption = abs(df.loc[idx - 1, 'price_change']) / df.loc[idx - 1, 'spread_proxy']
-        atr_value = df.loc[idx, 'atr']
+        # Calculate statistics for context using iloc
+        volume_z = df.iloc[idx - 1]['volume_zscore'] if idx > 0 else 0
+        spread_consumption = (
+            abs(df.iloc[idx - 1]['price_change']) / df.iloc[idx - 1]['spread_proxy']
+            if idx > 0 else 0
+        )
+        atr_value = df.iloc[idx]['atr']
         recent_volatility = df['close'].pct_change().rolling(12).std().iloc[idx]
 
         # Build signal justification
         trigger_condition = (
             f"Large market SELL order detected: Volume {volume_z:.1f}σ above mean "
-            f"({df.loc[idx-1, 'volume']:,.0f} units). "
+            f"({df.iloc[idx-1]['volume']:,.0f} units). "
             f"Price moved through {spread_consumption*100:.1f}% of the spread, "
-            f"dropping {abs(df.loc[idx-1, 'price_change'])*100:.2f}%. "
-            f"RSI({self.params.rsi_period}) at {df.loc[idx-1, 'rsi']:.1f} (oversold), "
+            f"dropping {abs(df.iloc[idx-1]['price_change'])*100:.2f}%. "
+            f"RSI({self.params.rsi_period}) at {df.iloc[idx-1]['rsi']:.1f} (oversold), "
             f"now showing bullish reversal with price recovering."
         )
 
         market_state = (
             f"Recent volatility: {recent_volatility*100:.2f}% (ATR: ${atr_value:.2f}). "
-            f"Price had been consolidating in a {df['close'].iloc[idx-12:idx].std()/df['close'].iloc[idx]*100:.2f}% "
+            f"Price had been consolidating in a {df['close'].iloc[max(0,idx-12):idx].std()/df['close'].iloc[idx]*100:.2f}% "
             f"range over the last {self.config.timeframe} period. "
             f"Liquidity shock created temporary dislocation."
         )
@@ -302,25 +296,28 @@ class LiquidityImbalanceMeanReversion(BaseStrategy):
         # Get market context
         asset = self.config.assets[0] if self.config.assets else "UNKNOWN"
 
-        # Calculate statistics
-        volume_z = df.loc[idx - 1, 'volume_zscore']
-        spread_consumption = abs(df.loc[idx - 1, 'price_change']) / df.loc[idx - 1, 'spread_proxy']
-        atr_value = df.loc[idx, 'atr']
+        # Calculate statistics using iloc
+        volume_z = df.iloc[idx - 1]['volume_zscore'] if idx > 0 else 0
+        spread_consumption = (
+            abs(df.iloc[idx - 1]['price_change']) / df.iloc[idx - 1]['spread_proxy']
+            if idx > 0 else 0
+        )
+        atr_value = df.iloc[idx]['atr']
         recent_volatility = df['close'].pct_change().rolling(12).std().iloc[idx]
 
         # Build signal justification
         trigger_condition = (
             f"Large market BUY order detected: Volume {volume_z:.1f}σ above mean "
-            f"({df.loc[idx-1, 'volume']:,.0f} units). "
+            f"({df.iloc[idx-1]['volume']:,.0f} units). "
             f"Price spiked through {spread_consumption*100:.1f}% of the spread, "
-            f"rising {abs(df.loc[idx-1, 'price_change'])*100:.2f}%. "
-            f"RSI({self.params.rsi_period}) at {df.loc[idx-1, 'rsi']:.1f} (overbought), "
+            f"rising {abs(df.iloc[idx-1]['price_change'])*100:.2f}%. "
+            f"RSI({self.params.rsi_period}) at {df.iloc[idx-1]['rsi']:.1f} (overbought), "
             f"now showing bearish reversal with price declining."
         )
 
         market_state = (
             f"Recent volatility: {recent_volatility*100:.2f}% (ATR: ${atr_value:.2f}). "
-            f"Price consolidation range: {df['close'].iloc[idx-12:idx].std()/df['close'].iloc[idx]*100:.2f}%. "
+            f"Price consolidation range: {df['close'].iloc[max(0,idx-12):idx].std()/df['close'].iloc[idx]*100:.2f}%. "
             f"Liquidity shock created temporary upward dislocation."
         )
 
@@ -376,8 +373,8 @@ class LiquidityImbalanceMeanReversion(BaseStrategy):
         Returns:
             Dictionary with entry, stop_loss, take_profit
         """
-        current_price = df.loc[signal_idx, 'close']
-        atr = df.loc[signal_idx, 'atr']
+        current_price = df.iloc[signal_idx]['close']
+        atr = df.iloc[signal_idx]['atr']
 
         if direction == 'LONG':
             # Entry at current close
@@ -427,14 +424,14 @@ class LiquidityImbalanceMeanReversion(BaseStrategy):
             return False
 
         # Check minimum liquidity (using volume as proxy)
-        recent_volume_usd = df.loc[signal_idx, 'volume'] * df.loc[signal_idx, 'close']
+        recent_volume_usd = df.iloc[signal_idx]['volume'] * df.iloc[signal_idx]['close']
         if recent_volume_usd < self.params.min_liquidity_usd:
             return False
 
         # Ensure we have required indicators
         required_cols = ['rsi', 'atr', 'volume_zscore']
         for col in required_cols:
-            if col not in df.columns or pd.isna(df.loc[signal_idx, col]):
+            if col not in df.columns or pd.isna(df.iloc[signal_idx][col]):
                 return False
 
         return True
